@@ -1,6 +1,6 @@
 services:
   app-a:
-    image: fabriciosveronez/app-telemetria:v1
+    image: pauloaragaodev/app-telemetria:v1
     build: 
       context: ./src
       dockerfile: ./Dockerfile
