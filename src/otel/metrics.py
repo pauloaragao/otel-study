@@ -9,6 +9,7 @@ import random
 from typing import Iterable
 import os
 import psutil
+import shutil
 from opentelemetry import metrics
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.exporter.prometheus import PrometheusMetricReader
@@ -87,16 +88,26 @@ class MetricsOTEL:
         # =============================================================================
         # Observable Gauge: Valor atual calculado dinamicamente
         # Perfeito para métricas do sistema que mudam constantemente
-        def get_memory_usage(options: CallbackOptions) -> Iterable[Observation]:
-            memory_usage = self.process.memory_percent()
-            yield Observation(
-                memory_usage,
-                {"service": self.app_name}
-            )
-        self.memory_gauge = self.meter.create_observable_gauge(
-            name="app_memory_usage",
-            description="Uso de memória do processo",
-            callbacks=[get_memory_usage]
+        # Registre as métricas observáveis uma única vez
+        self.meter.create_observable_gauge(
+            name="app_memoria_usada_processo_mb",
+            description="Memória usada pelo processo em MB",
+            callbacks=[memoria_usada_callback]
+        )
+        self.meter.create_observable_gauge(
+            name="app_memoria_disponivel_mb",
+            description="Memória disponível no sistema em MB",
+            callbacks=[memoria_disponivel_callback]
+        )
+        self.meter.create_observable_gauge(
+            name="app_cpu_percent",
+            description="Uso de CPU no momento da requisição (%)",
+            callbacks=[cpu_percent_callback]
+        )
+        self.meter.create_observable_gauge(
+            name="app_disco_livre_gb",
+            description="Espaço em disco livre em GB",
+            callbacks=[disco_livre_callback]
         )
 
         # Histogram
@@ -114,3 +125,20 @@ class MetricsOTEL:
                 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5
             ]
         )
+
+
+
+def memoria_usada_callback(options: CallbackOptions):
+    process = psutil.Process()
+    return [Observation(process.memory_info().rss / (1024 * 1024), {"app": config.APP_NAME})]
+
+def memoria_disponivel_callback(options: CallbackOptions):
+    mem_info = psutil.virtual_memory()
+    return [Observation(mem_info.available / (1024 * 1024), {"app": config.APP_NAME})]
+
+def cpu_percent_callback(options: CallbackOptions):
+    return [Observation(psutil.cpu_percent(interval=0.1), {"app": config.APP_NAME})]
+
+def disco_livre_callback(options: CallbackOptions):
+    disk_info = shutil.disk_usage("/")
+    return [Observation(disk_info.free / (1024 * 1024 * 1024), {"app": config.APP_NAME})]

@@ -1,11 +1,12 @@
 # Imports padrão
 import time
-import random
 import sys
 from typing import List
 
 # Imports de terceiros
 import requests
+import psutil
+import shutil
 from fastapi import FastAPI, Response, status, Request
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from opentelemetry.trace import Status, StatusCode, get_current_span
@@ -50,13 +51,6 @@ def get_log_context(operation: str) -> dict:
         })
     return context
 
-def simulate_latency():
-    if config.APP_LATENCY > 0:
-        simulated_latency = random.randint(0, config.APP_LATENCY)
-        logger.debug("Simulando latência", extra={"simulated_latency_ms": simulated_latency})
-        time.sleep(simulated_latency / 1000)
-        return simulated_latency
-    return 0
 
 def propagate_downstream(original_payload, log_context, response):
     if not config.APP_URL_DESTINO:
@@ -114,14 +108,33 @@ def process_request(payload: List[str], response: Response, request: Request):
         main_span.set_attribute("payload.original", str(payload))
         main_span.set_attribute("payload.modified", str(original_payload))
         main_span.add_event("Início do processamento", {"payload_tamanho": f"{sys.getsizeof(payload)} bytes"})
-        logger.debug("Span principal iniciado", extra={**log_context, "span_name": "process-request", "payload_bytes": sys.getsizeof(payload)})
+        logger.info("Span principal iniciado", extra={**log_context, "span_name": "process-request", "payload_bytes": sys.getsizeof(payload)})
         start_time = time.time()
-        active_requests_gauge.set(10, {"app": config.APP_NAME})
-        requests_counter.add(1, {"app": config.APP_NAME, "endpoint": "/process"})
-        simulate_latency()
+
+        # Coletar métricas do sistema no momento da requisição
+        process = psutil.Process()
+        mem_info = psutil.virtual_memory()
+        cpu_percent = psutil.cpu_percent(interval=0.1)
+        disk_info = shutil.disk_usage("/")
+
+        memoria_usada_mb = process.memory_info().rss / (1024 * 1024)
+        memoria_disponivel_mb = mem_info.available / (1024 * 1024)
+        disco_livre_gb = disk_info.free / (1024 * 1024 * 1024)
+
+        logger.info(
+            "Métricas do sistema no momento da requisição",
+            extra={
+                **log_context,
+                "memoria_usada_processo_mb": f"{memoria_usada_mb:.2f}",
+                "memoria_disponivel_mb": f"{memoria_disponivel_mb:.2f}",
+                "cpu_percent": f"{cpu_percent}",
+                "disco_livre_gb": f"{disco_livre_gb:.2f}"
+            }
+        )
+
         result = propagate_downstream(original_payload, log_context, response)
+
         elapsed_time = time.time() - start_time
         main_span.set_status(Status(StatusCode.OK))
         logger.info("Processamento concluido com sucesso", extra={**log_context, "result_payload": result, "processing_duration": elapsed_time})
-    response_time_histogram.record(elapsed_time, {"app": config.APP_NAME, "endpoint": "/process"})
     return result

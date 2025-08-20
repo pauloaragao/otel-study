@@ -8,47 +8,14 @@ services:
       - "8000:8000"
     environment:
       - APP_NAME=app-a
-      - APP_URL_DESTINO=http://app-b:8000,http://app-c:8000
+      #- APP_URL_DESTINO=http://app-b:8000,http://app-c:8000
       - APP_ERRORS=5
       - APP_LATENCY=100
       - OTLP_ENDPOINT=http://otel-collector:4318
     networks:
       - app-network
     depends_on:
-      - otel-collector
-
-  app-b:
-    build: 
-      context: ./src
-      dockerfile: ./Dockerfile
-    ports:
-      - "8001:8000"
-    environment:
-      - APP_NAME=app-b
-      - APP_URL_DESTINO=http://app-c:8000
-      - APP_ERRORS=10
-      - APP_LATENCY=150
-      - OTLP_ENDPOINT=http://otel-collector:4318
-    networks:
-      - app-network
-    depends_on:
-      - otel-collector      
-
-  app-c:
-    build: 
-      context: ./src
-      dockerfile: ./Dockerfile
-    ports:
-      - "8002:8000"
-    environment:
-      - APP_NAME=app-c
-      - APP_ERRORS=15
-      - APP_LATENCY=200
-      - OTLP_ENDPOINT=http://otel-collector:4318
-    networks:
-      - app-network
-    depends_on:
-      - otel-collector      
+      - otel-collector 
 
   # Jaeger
   jaeger:
