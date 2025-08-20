@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-APP_NAME = os.getenv("APP_NAME", "app-a")
+APP_NAME = os.getenv("APP_NAME", "app-observability-otel")
 APP_URL_DESTINO = os.getenv("APP_URL_DESTINO", "")
 
 # Simulação de problemas
